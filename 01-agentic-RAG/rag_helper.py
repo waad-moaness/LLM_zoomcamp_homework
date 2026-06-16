@@ -1,4 +1,7 @@
 
+
+from pydantic_ai import Agent
+
 INSTRUCTIONS = '''
 Your task is to answer questions from the course participants
 based on the provided context.
@@ -14,8 +17,6 @@ QUESTION: {question}
 CONTEXT:
 {context}
 '''.strip()
-
-from pydantic_ai import Agent
 
 
 class RAGBase:
@@ -33,9 +34,14 @@ class RAGBase:
         self.instructions = instructions
         self.prompt_template = prompt_template
         self.model = model
+        
+        # Instantiating the Agent once in __init__ is cleaner and more efficient
+        self.agent = Agent(
+            model=self.llm_client,
+            system_prompt=self.instructions
+        )
 
     def search(self, query, num_results=5):
-        # Fixed: Removed the broken set definitions completely
         return self.index.search(
             query=query,
             num_results=num_results
@@ -55,21 +61,14 @@ class RAGBase:
         )
 
     async def llm(self, prompt):
-        input_messages = [
-            {'role': 'developer', 'content': self.instructions},
-            {'role': 'user', 'content': prompt}
-        ]
-        agent = Agent(
-        model=self.llm_client,
-        system_prompt=prompt,
-        )
-        result = await agent.run()
-        # Fixed: Returning usage metadata so you can answer Q3
-        return result.output_text, result.usage
+        result = await self.agent.run(prompt)
+        return result.output, result.usage
 
     async def rag(self, query):
         search_results = self.search(query)
         prompt = self.build_prompt(query, search_results)
         answer, usage = await self.llm(prompt)
+        
+        # This will now cleanly print out your prompt token counts for Q3!
         print(f"Token usage info: {usage}") 
-        return answer , usage
+        return answer, usage
